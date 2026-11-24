@@ -1,0 +1,317 @@
+{
+  "entities": {
+    "BusinessSetting": {
+      "title": "BusinessSetting",
+      "description": "Public and operational configuration for the AutoSuite dealership/rental installation.",
+      "type": "object",
+      "properties": {
+        "businessName": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "tagline": { "type": "string", "maxLength": 180 },
+        "businessMode": { "type": "string", "enum": ["SALES_ONLY", "RENTAL_ONLY", "COMBINED"] },
+        "currency": { "type": "string", "minLength": 3, "maxLength": 3 },
+        "currencyFormat": { "type": "string", "maxLength": 40 },
+        "language": { "type": "string", "minLength": 2, "maxLength": 10 },
+        "contactEmail": { "type": "string", "maxLength": 120 },
+        "contactPhone": { "type": "string", "maxLength": 40 },
+        "address": { "type": "string", "maxLength": 200 },
+        "websiteDomain": { "type": "string", "maxLength": 180 },
+        "authDomain": { "type": "string", "maxLength": 180 },
+        "authDomainVerified": { "type": "boolean" },
+        "supportEmail": { "type": "string", "maxLength": 160 },
+        "privacyPolicyUrl": { "type": "string", "maxLength": 500 },
+        "termsOfServiceUrl": { "type": "string", "maxLength": 500 },
+        "heroTitle": { "type": "string", "maxLength": 120 },
+        "heroSubtitle": { "type": "string", "maxLength": 280 },
+        "aboutContent": { "type": "string", "maxLength": 2000 },
+        "rentalPolicy": { "type": "string", "maxLength": 2000 },
+        "depositPercent": { "type": "number" },
+        "chauffeurFeePerDayCents": { "type": "number" },
+        "locations": { "type": "array" },
+        "logoUrl": { "type": "string", "maxLength": 500 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["businessName", "businessMode", "currency"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User account profile and role assignment.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "maxLength": 160 },
+        "fullName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "phone": { "type": "string", "maxLength": 40 },
+        "address": { "type": "string", "maxLength": 200 },
+        "driverLicenseNo": { "type": "string", "maxLength": 60 },
+        "role": { "type": "string", "enum": ["SUPER_ADMIN", "BUSINESS_ADMIN", "STAFF", "CUSTOMER"] },
+        "permissions": { "type": "array" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "fullName", "role", "active"]
+    },
+    "Brand": {
+      "title": "Brand",
+      "description": "Vehicle manufacturer brand.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "country": { "type": "string", "maxLength": 60 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name"]
+    },
+    "VehicleCategory": {
+      "title": "VehicleCategory",
+      "description": "Vehicle body or fleet category.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "description": { "type": "string", "maxLength": 200 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name"]
+    },
+    "Vehicle": {
+      "title": "Vehicle",
+      "description": "Publicly visible vehicle listing (excludes private registration number).",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "brand": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "model": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "year": { "type": "number" },
+        "category": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "listingType": { "type": "string", "enum": ["SALE", "RENTAL", "BOTH"] },
+        "mileageKm": { "type": "number" },
+        "transmission": { "type": "string", "enum": ["Automatic", "Manual", "Dual-Clutch", "Single-Speed EV"] },
+        "fuelType": { "type": "string", "enum": ["Petrol", "Diesel", "Hybrid", "Electric"] },
+        "engineCapacity": { "type": "string", "maxLength": 40 },
+        "color": { "type": "string", "maxLength": 40 },
+        "seats": { "type": "number" },
+        "description": { "type": "string", "maxLength": 2000 },
+        "features": { "type": "array" },
+        "images": { "type": "array" },
+        "mainImage": { "type": "string", "maxLength": 500 },
+        "salePriceCents": { "type": "number" },
+        "rentalPricePerDayCents": { "type": "number" },
+        "chauffeurAvailable": { "type": "boolean" },
+        "available": { "type": "boolean" },
+        "published": { "type": "boolean" },
+        "archived": { "type": "boolean" },
+        "featured": { "type": "boolean" },
+        "location": { "type": "string", "maxLength": 100 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "brand", "model", "year", "category", "listingType", "transmission", "fuelType", "available", "published", "archived"]
+    },
+    "VehiclePrivate": {
+      "title": "VehiclePrivate",
+      "description": "Restricted vehicle registration and internal asset records (staff/admin only).",
+      "type": "object",
+      "properties": {
+        "vehicleId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "registrationNumber": { "type": "string", "maxLength": 40 },
+        "vin": { "type": "string", "maxLength": 40 },
+        "internalNotes": { "type": "string", "maxLength": 1000 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["vehicleId", "registrationNumber"]
+    },
+    "VehicleSchedule": {
+      "title": "VehicleSchedule",
+      "description": "Confirmed and active rental intervals for atomic overlap prevention.",
+      "type": "object",
+      "properties": {
+        "vehicleId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "slots": { "type": "array" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["vehicleId", "slots"]
+    },
+    "Favorite": {
+      "title": "Favorite",
+      "description": "Customer saved vehicle favorite.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "vehicleId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "vehicleId"]
+    },
+    "SaleInquiry": {
+      "title": "SaleInquiry",
+      "description": "Dedicated Car Sales purchase inquiry and buyer negotiation record.",
+      "type": "object",
+      "properties": {
+        "inquiryReference": { "type": "string", "maxLength": 40 },
+        "customerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "vehicleId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "vehicleName": { "type": "string", "maxLength": 140 },
+        "customerName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "customerPhone": { "type": "string", "minLength": 4, "maxLength": 40 },
+        "customerEmail": { "type": "string", "maxLength": 160 },
+        "preferredBudgetCents": { "type": "number" },
+        "currency": { "type": "string", "maxLength": 3 },
+        "preferredPaymentMethod": { "type": "string", "enum": ["CASH", "BANK_FINANCING", "OTHER"] },
+        "purchaseTimeline": { "type": "string", "enum": ["IMMEDIATELY", "WITHIN_ONE_MONTH", "WITHIN_THREE_MONTHS", "LATER"] },
+        "needsFinancing": { "type": "boolean" },
+        "preferredInspectionDate": { "type": "string", "maxLength": 40 },
+        "message": { "type": "string", "maxLength": 2000 },
+        "status": { "type": "string", "enum": ["NEW", "CONTACTED", "NEGOTIATING", "INSPECTION_SCHEDULED", "OFFER_SENT", "SOLD", "CLOSED_UNSUCCESSFUL"] },
+        "assignedStaffId": { "type": "string", "maxLength": 128 },
+        "assignedStaffName": { "type": "string", "maxLength": 120 },
+        "followUpDate": { "type": "string", "maxLength": 40 },
+        "notes": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["inquiryReference", "customerId", "vehicleId", "vehicleName", "customerName", "customerPhone", "preferredBudgetCents", "currency", "preferredPaymentMethod", "purchaseTimeline", "needsFinancing", "status"]
+    },
+    "RentalBooking": {
+      "title": "RentalBooking",
+      "description": "Dedicated Car Rental date-based reservation and booking record.",
+      "type": "object",
+      "properties": {
+        "bookingReference": { "type": "string", "maxLength": 40 },
+        "customerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "customerName": { "type": "string", "maxLength": 120 },
+        "customerPhone": { "type": "string", "minLength": 4, "maxLength": 40 },
+        "customerEmail": { "type": "string", "maxLength": 160 },
+        "vehicleId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "vehicleName": { "type": "string", "maxLength": 140 },
+        "pickupLocation": { "type": "string", "maxLength": 120 },
+        "returnLocation": { "type": "string", "maxLength": 120 },
+        "pickupAt": { "type": "string", "maxLength": 40 },
+        "returnAt": { "type": "string", "maxLength": 40 },
+        "rentalMode": { "type": "string", "enum": ["SELF_DRIVE", "CHAUFFEUR"] },
+        "additionalServices": { "type": "array" },
+        "specialRequests": { "type": "string", "maxLength": 1500 },
+        "days": { "type": "number" },
+        "currency": { "type": "string", "maxLength": 3 },
+        "dailyRateCents": { "type": "number" },
+        "chauffeurFeeCents": { "type": "number" },
+        "additionalServicesCents": { "type": "number" },
+        "totalAmountCents": { "type": "number" },
+        "requiredDepositCents": { "type": "number" },
+        "paidAmountCents": { "type": "number" },
+        "status": { "type": "string", "enum": ["PENDING", "CONFIRMED", "REJECTED", "ACTIVE", "COMPLETED", "CANCELLED"] },
+        "contractReference": { "type": "string", "maxLength": 80 },
+        "pickupInspectionNote": { "type": "string", "maxLength": 1000 },
+        "returnInspectionNote": { "type": "string", "maxLength": 1000 },
+        "assignedStaffId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["bookingReference", "customerId", "customerName", "customerPhone", "vehicleId", "vehicleName", "pickupLocation", "returnLocation", "pickupAt", "returnAt", "rentalMode", "additionalServices", "days", "currency", "totalAmountCents", "status"]
+    },
+    "RentalPayment": {
+      "title": "RentalPayment",
+      "description": "Manual payment or deposit recorded against a rental booking.",
+      "type": "object",
+      "properties": {
+        "bookingId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "customerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "customerName": { "type": "string", "maxLength": 120 },
+        "amountCents": { "type": "number" },
+        "currency": { "type": "string", "maxLength": 3 },
+        "paymentType": { "type": "string", "enum": ["DEPOSIT", "RENTAL_PAYMENT", "REFUND"] },
+        "method": { "type": "string", "enum": ["CASH", "BANK_TRANSFER", "OTHER"] },
+        "reference": { "type": "string", "maxLength": 100 },
+        "notes": { "type": "string", "maxLength": 500 },
+        "paidAt": { "type": "string", "maxLength": 40 },
+        "recordedBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["bookingId", "customerId", "amountCents", "currency", "paymentType", "method", "reference", "paidAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "In-app notification for customer or staff/admin.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "audience": { "type": "string", "enum": ["USER", "ADMIN"] },
+        "title": { "type": "string", "maxLength": 140 },
+        "message": { "type": "string", "maxLength": 500 },
+        "type": { "type": "string", "enum": ["BOOKING", "INQUIRY", "PAYMENT", "SYSTEM"] },
+        "read": { "type": "boolean" },
+        "link": { "type": "string", "maxLength": 200 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "audience", "title", "message", "type", "read"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable security and business audit log entry.",
+      "type": "object",
+      "properties": {
+        "actorId": { "type": "string", "maxLength": 128 },
+        "actorEmail": { "type": "string", "maxLength": 160 },
+        "action": { "type": "string", "maxLength": 100 },
+        "entityType": { "type": "string", "maxLength": 60 },
+        "entityId": { "type": "string", "maxLength": 128 },
+        "summary": { "type": "string", "maxLength": 400 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["actorId", "action", "entityType", "entityId", "summary"]
+    }
+  },
+  "firestore": {
+    "/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/BusinessSetting" },
+      "description": "Global business settings and branding."
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User accounts, roles, and customer/staff profiles."
+    },
+    "/brands/{brandId}": {
+      "schema": { "$ref": "#/entities/Brand" },
+      "description": "Vehicle brands."
+    },
+    "/categories/{categoryId}": {
+      "schema": { "$ref": "#/entities/VehicleCategory" },
+      "description": "Vehicle categories."
+    },
+    "/vehicles/{vehicleId}": {
+      "schema": { "$ref": "#/entities/Vehicle" },
+      "description": "Public vehicle catalog."
+    },
+    "/vehicle_private/{vehicleId}": {
+      "schema": { "$ref": "#/entities/VehiclePrivate" },
+      "description": "Private registration and VIN metadata restricted to staff and admins."
+    },
+    "/vehicle_schedules/{vehicleId}": {
+      "schema": { "$ref": "#/entities/VehicleSchedule" },
+      "description": "Confirmed rental intervals for overlap checks."
+    },
+    "/favorites/{favoriteId}": {
+      "schema": { "$ref": "#/entities/Favorite" },
+      "description": "Customer favorite vehicles."
+    },
+    "/inquiries/{inquiryId}": {
+      "schema": { "$ref": "#/entities/SaleInquiry" },
+      "description": "Dedicated Car Sales purchase inquiries."
+    },
+    "/bookings/{bookingId}": {
+      "schema": { "$ref": "#/entities/RentalBooking" },
+      "description": "Dedicated Car Rental reservations."
+    },
+    "/payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/RentalPayment" },
+      "description": "Manual payments recorded for rental bookings."
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/Notification" },
+      "description": "In-app notifications."
+    },
+    "/audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Immutable administrative and customer audit trail."
+    }
+  }
+}

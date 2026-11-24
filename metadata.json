@@ -1,0 +1,6 @@
+{
+  "name": "AutoSuite",
+  "description": "Commercial automotive sales dealership and fleet rental management system developed by DCINTELIX CO LTD.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

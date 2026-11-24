@@ -1,0 +1,606 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ---------------------------------------------------------
+    // Global Hardened Helpers
+    // ---------------------------------------------------------
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isBootstrappedAdmin() {
+      return isVerified() && request.auth.token.email == 'dushimec515@gmail.com';
+    }
+
+    function userDocExists() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || (
+        isVerified() &&
+        userDocExists() &&
+        userRole().active == true &&
+        (userRole().role == 'SUPER_ADMIN' || userRole().role == 'BUSINESS_ADMIN')
+      );
+    }
+
+    function isStaffOrAdmin() {
+      return isAdmin() || (
+        isVerified() &&
+        userDocExists() &&
+        userRole().active == true &&
+        userRole().role == 'STAFF'
+      );
+    }
+
+    function isOwner(uid) {
+      return isVerified() && request.auth.uid == uid;
+    }
+
+    function isValidOptStr(data, key, maxLen) {
+      return !(key in data) || (data[key] is string && data[key].size() <= maxLen);
+    }
+
+    function isValidStringList(listVal, maxItems) {
+      return listVal is list &&
+        listVal.size() <= maxItems &&
+        (listVal.size() == 0 || listVal[0] is string);
+    }
+
+    // ---------------------------------------------------------
+    // Validation Blueprints
+    // ---------------------------------------------------------
+    function isValidBusinessSetting(data) {
+      return data.keys().hasAll(['businessName', 'businessMode', 'currency', 'updatedAt']) &&
+        data.keys().hasOnly([
+          'businessName', 'tagline', 'businessMode', 'currency', 'currencyFormat', 'language',
+          'contactEmail', 'contactPhone', 'address', 'websiteDomain', 'authDomain',
+          'authDomainVerified', 'supportEmail', 'privacyPolicyUrl', 'termsOfServiceUrl',
+          'heroTitle', 'heroSubtitle', 'aboutContent', 'rentalPolicy', 'depositPercent',
+          'chauffeurFeePerDayCents', 'locations', 'logoUrl', 'updatedAt'
+        ]) &&
+        data.businessName is string && data.businessName.size() >= 2 && data.businessName.size() <= 100 &&
+        data.businessMode in ['SALES_ONLY', 'RENTAL_ONLY', 'COMBINED'] &&
+        data.currency is string && data.currency.size() == 3 &&
+        isValidOptStr(data, 'currencyFormat', 40) &&
+        isValidOptStr(data, 'tagline', 180) &&
+        isValidOptStr(data, 'language', 10) &&
+        isValidOptStr(data, 'contactEmail', 120) &&
+        isValidOptStr(data, 'contactPhone', 40) &&
+        isValidOptStr(data, 'address', 200) &&
+        isValidOptStr(data, 'websiteDomain', 180) &&
+        isValidOptStr(data, 'authDomain', 180) &&
+        (!('authDomainVerified' in data) || data.authDomainVerified is bool) &&
+        isValidOptStr(data, 'supportEmail', 160) &&
+        isValidOptStr(data, 'privacyPolicyUrl', 500) &&
+        isValidOptStr(data, 'termsOfServiceUrl', 500) &&
+        isValidOptStr(data, 'heroTitle', 120) &&
+        isValidOptStr(data, 'heroSubtitle', 280) &&
+        isValidOptStr(data, 'aboutContent', 2000) &&
+        isValidOptStr(data, 'rentalPolicy', 2000) &&
+        isValidOptStr(data, 'logoUrl', 500) &&
+        (!('depositPercent' in data) || (data.depositPercent is number && data.depositPercent >= 0 && data.depositPercent <= 100)) &&
+        (!('chauffeurFeePerDayCents' in data) || (data.chauffeurFeePerDayCents is number && data.chauffeurFeePerDayCents >= 0)) &&
+        (!('locations' in data) || isValidStringList(data.locations, 25)) &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidUserProfile(data, uid) {
+      return data.keys().hasAll(['uid', 'email', 'fullName', 'role', 'permissions', 'active', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly([
+          'uid', 'email', 'fullName', 'phone', 'address', 'driverLicenseNo',
+          'role', 'permissions', 'active', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.uid) && data.uid == uid &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 160 &&
+        data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 120 &&
+        isValidOptStr(data, 'phone', 40) &&
+        isValidOptStr(data, 'address', 200) &&
+        isValidOptStr(data, 'driverLicenseNo', 60) &&
+        data.role in ['SUPER_ADMIN', 'BUSINESS_ADMIN', 'STAFF', 'CUSTOMER'] &&
+        isValidStringList(data.permissions, 30) &&
+        data.active is bool &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidBrand(data) {
+      return data.keys().hasAll(['name', 'createdAt']) &&
+        data.keys().hasOnly(['name', 'country', 'createdAt']) &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 60 &&
+        isValidOptStr(data, 'country', 60) &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidCategory(data) {
+      return data.keys().hasAll(['name', 'createdAt']) &&
+        data.keys().hasOnly(['name', 'description', 'createdAt']) &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 60 &&
+        isValidOptStr(data, 'description', 200) &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidVehicle(data) {
+      return data.keys().hasAll([
+          'name', 'brand', 'model', 'year', 'category', 'listingType',
+          'mileageKm', 'transmission', 'fuelType', 'engineCapacity', 'color',
+          'seats', 'description', 'features', 'images', 'mainImage',
+          'salePriceCents', 'rentalPricePerDayCents', 'chauffeurAvailable',
+          'available', 'published', 'archived', 'featured', 'location',
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'name', 'brand', 'model', 'year', 'category', 'listingType',
+          'mileageKm', 'transmission', 'fuelType', 'engineCapacity', 'color',
+          'seats', 'description', 'features', 'images', 'mainImage',
+          'salePriceCents', 'rentalPricePerDayCents', 'chauffeurAvailable',
+          'available', 'published', 'archived', 'featured', 'location',
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.name is string && data.name.size() >= 2 && data.name.size() <= 120 &&
+        data.brand is string && data.brand.size() >= 1 && data.brand.size() <= 60 &&
+        data.model is string && data.model.size() >= 1 && data.model.size() <= 60 &&
+        data.year is number && data.year >= 1950 && data.year <= 2035 &&
+        data.category is string && data.category.size() >= 1 && data.category.size() <= 60 &&
+        data.listingType in ['SALE', 'RENTAL', 'BOTH'] &&
+        data.mileageKm is number && data.mileageKm >= 0 &&
+        data.transmission in ['Automatic', 'Manual', 'Dual-Clutch', 'Single-Speed EV'] &&
+        data.fuelType in ['Petrol', 'Diesel', 'Hybrid', 'Electric'] &&
+        data.engineCapacity is string && data.engineCapacity.size() <= 40 &&
+        data.color is string && data.color.size() <= 40 &&
+        data.seats is number && data.seats >= 1 && data.seats <= 20 &&
+        data.description is string && data.description.size() <= 2000 &&
+        isValidStringList(data.features, 30) &&
+        isValidStringList(data.images, 15) &&
+        data.mainImage is string && data.mainImage.size() <= 500 &&
+        data.salePriceCents is number && data.salePriceCents >= 0 &&
+        data.rentalPricePerDayCents is number && data.rentalPricePerDayCents >= 0 &&
+        data.chauffeurAvailable is bool &&
+        data.available is bool &&
+        data.published is bool &&
+        data.archived is bool &&
+        data.featured is bool &&
+        data.location is string && data.location.size() <= 100 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidVehiclePrivate(data, vehicleId) {
+      return data.keys().hasAll(['vehicleId', 'registrationNumber', 'updatedAt']) &&
+        data.keys().hasOnly(['vehicleId', 'registrationNumber', 'vin', 'internalNotes', 'updatedAt']) &&
+        isValidId(data.vehicleId) && data.vehicleId == vehicleId &&
+        data.registrationNumber is string && data.registrationNumber.size() >= 1 && data.registrationNumber.size() <= 40 &&
+        isValidOptStr(data, 'vin', 40) &&
+        isValidOptStr(data, 'internalNotes', 1000) &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidVehicleSchedule(data, vehicleId) {
+      return data.keys().hasAll(['vehicleId', 'slots', 'updatedAt']) &&
+        data.keys().hasOnly(['vehicleId', 'slots', 'updatedAt']) &&
+        isValidId(data.vehicleId) && data.vehicleId == vehicleId &&
+        data.slots is list && data.slots.size() <= 200 &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidFavorite(data) {
+      return data.keys().hasAll(['userId', 'vehicleId', 'createdAt']) &&
+        data.keys().hasOnly(['userId', 'vehicleId', 'createdAt']) &&
+        isValidId(data.userId) && data.userId == request.auth.uid &&
+        isValidId(data.vehicleId) &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidSaleInquiry(data) {
+      return data.keys().hasAll([
+          'inquiryReference', 'customerId', 'vehicleId', 'vehicleName',
+          'customerName', 'customerPhone', 'preferredBudgetCents', 'currency',
+          'preferredPaymentMethod', 'purchaseTimeline', 'needsFinancing',
+          'status', 'notes', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'inquiryReference', 'customerId', 'vehicleId', 'vehicleName',
+          'customerName', 'customerPhone', 'customerEmail', 'preferredBudgetCents',
+          'currency', 'preferredPaymentMethod', 'purchaseTimeline', 'needsFinancing',
+          'preferredInspectionDate', 'message', 'status', 'assignedStaffId',
+          'assignedStaffName', 'followUpDate', 'notes', 'createdAt', 'updatedAt'
+        ]) &&
+        data.inquiryReference is string && data.inquiryReference.size() >= 6 && data.inquiryReference.size() <= 40 &&
+        isValidId(data.customerId) &&
+        isValidId(data.vehicleId) &&
+        data.vehicleName is string && data.vehicleName.size() >= 1 && data.vehicleName.size() <= 140 &&
+        data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 120 &&
+        data.customerPhone is string && data.customerPhone.size() >= 4 && data.customerPhone.size() <= 40 &&
+        isValidOptStr(data, 'customerEmail', 160) &&
+        data.preferredBudgetCents is number && data.preferredBudgetCents > 0 &&
+        data.currency is string && data.currency.size() == 3 &&
+        data.preferredPaymentMethod in ['CASH', 'BANK_FINANCING', 'OTHER'] &&
+        data.purchaseTimeline in ['IMMEDIATELY', 'WITHIN_ONE_MONTH', 'WITHIN_THREE_MONTHS', 'LATER'] &&
+        data.needsFinancing is bool &&
+        isValidOptStr(data, 'preferredInspectionDate', 40) &&
+        isValidOptStr(data, 'message', 2000) &&
+        data.status in ['NEW', 'CONTACTED', 'NEGOTIATING', 'INSPECTION_SCHEDULED', 'OFFER_SENT', 'SOLD', 'CLOSED_UNSUCCESSFUL'] &&
+        isValidOptStr(data, 'assignedStaffId', 128) &&
+        isValidOptStr(data, 'assignedStaffName', 120) &&
+        isValidOptStr(data, 'followUpDate', 40) &&
+        data.notes is list && data.notes.size() <= 50 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidRentalBooking(data) {
+      return data.keys().hasAll([
+          'bookingReference', 'customerId', 'customerName', 'customerPhone',
+          'vehicleId', 'vehicleName', 'pickupLocation', 'returnLocation',
+          'pickupAt', 'returnAt', 'rentalMode', 'additionalServices', 'days',
+          'currency', 'dailyRateCents', 'chauffeurFeeCents', 'additionalServicesCents',
+          'totalAmountCents', 'requiredDepositCents', 'paidAmountCents', 'status',
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'bookingReference', 'customerId', 'customerName', 'customerPhone',
+          'customerEmail', 'vehicleId', 'vehicleName', 'pickupLocation', 'returnLocation',
+          'pickupAt', 'returnAt', 'rentalMode', 'additionalServices', 'specialRequests',
+          'days', 'currency', 'dailyRateCents', 'chauffeurFeeCents', 'additionalServicesCents',
+          'totalAmountCents', 'requiredDepositCents', 'paidAmountCents', 'status',
+          'contractReference', 'pickupInspectionNote', 'returnInspectionNote',
+          'assignedStaffId', 'createdAt', 'updatedAt'
+        ]) &&
+        data.bookingReference is string && data.bookingReference.size() >= 6 && data.bookingReference.size() <= 40 &&
+        isValidId(data.customerId) &&
+        data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 120 &&
+        data.customerPhone is string && data.customerPhone.size() >= 4 && data.customerPhone.size() <= 40 &&
+        isValidOptStr(data, 'customerEmail', 160) &&
+        isValidId(data.vehicleId) &&
+        data.vehicleName is string && data.vehicleName.size() >= 1 && data.vehicleName.size() <= 140 &&
+        data.pickupLocation is string && data.pickupLocation.size() >= 1 && data.pickupLocation.size() <= 120 &&
+        data.returnLocation is string && data.returnLocation.size() >= 1 && data.returnLocation.size() <= 120 &&
+        data.pickupAt is string && data.pickupAt.size() >= 8 && data.pickupAt.size() <= 40 &&
+        data.returnAt is string && data.returnAt.size() >= 8 && data.returnAt.size() <= 40 &&
+        data.rentalMode in ['SELF_DRIVE', 'CHAUFFEUR'] &&
+        isValidStringList(data.additionalServices, 10) &&
+        isValidOptStr(data, 'specialRequests', 1500) &&
+        data.days is number && data.days >= 1 && data.days <= 365 &&
+        data.currency is string && data.currency.size() == 3 &&
+        data.dailyRateCents is number && data.dailyRateCents >= 0 &&
+        data.chauffeurFeeCents is number && data.chauffeurFeeCents >= 0 &&
+        data.additionalServicesCents is number && data.additionalServicesCents >= 0 &&
+        data.totalAmountCents is number && data.totalAmountCents >= 0 &&
+        data.requiredDepositCents is number && data.requiredDepositCents >= 0 &&
+        data.paidAmountCents is number && data.paidAmountCents >= 0 &&
+        data.status in ['PENDING', 'CONFIRMED', 'REJECTED', 'ACTIVE', 'COMPLETED', 'CANCELLED'] &&
+        isValidOptStr(data, 'contractReference', 80) &&
+        isValidOptStr(data, 'pickupInspectionNote', 1000) &&
+        isValidOptStr(data, 'returnInspectionNote', 1000) &&
+        isValidOptStr(data, 'assignedStaffId', 128) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidRentalPayment(data) {
+      return data.keys().hasAll([
+          'bookingId', 'customerId', 'customerName', 'amountCents', 'currency',
+          'paymentType', 'method', 'reference', 'notes', 'paidAt', 'recordedBy', 'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'bookingId', 'customerId', 'customerName', 'amountCents', 'currency',
+          'paymentType', 'method', 'reference', 'notes', 'paidAt', 'recordedBy', 'createdAt'
+        ]) &&
+        isValidId(data.bookingId) &&
+        isValidId(data.customerId) &&
+        data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 120 &&
+        data.amountCents is number && data.amountCents > 0 &&
+        data.currency is string && data.currency.size() == 3 &&
+        data.paymentType in ['DEPOSIT', 'RENTAL_PAYMENT', 'REFUND'] &&
+        data.method in ['CASH', 'BANK_TRANSFER', 'OTHER'] &&
+        data.reference is string && data.reference.size() >= 1 && data.reference.size() <= 100 &&
+        data.notes is string && data.notes.size() <= 500 &&
+        data.paidAt is string && data.paidAt.size() >= 8 && data.paidAt.size() <= 40 &&
+        isValidId(data.recordedBy) &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['userId', 'audience', 'title', 'message', 'type', 'read', 'createdAt']) &&
+        data.keys().hasOnly(['userId', 'audience', 'title', 'message', 'type', 'read', 'link', 'createdAt']) &&
+        isValidId(data.userId) &&
+        data.audience in ['USER', 'ADMIN'] &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 140 &&
+        data.message is string && data.message.size() >= 1 && data.message.size() <= 500 &&
+        data.type in ['BOOKING', 'INQUIRY', 'PAYMENT', 'SYSTEM'] &&
+        data.read is bool &&
+        isValidOptStr(data, 'link', 200) &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidAuditLog(data) {
+      return data.keys().hasAll(['actorId', 'actorEmail', 'action', 'entityType', 'entityId', 'summary', 'createdAt']) &&
+        data.keys().hasOnly(['actorId', 'actorEmail', 'action', 'entityType', 'entityId', 'summary', 'createdAt']) &&
+        isValidId(data.actorId) && data.actorId == request.auth.uid &&
+        data.actorEmail is string && data.actorEmail.size() <= 160 &&
+        data.action is string && data.action.size() >= 1 && data.action.size() <= 100 &&
+        data.entityType is string && data.entityType.size() >= 1 && data.entityType.size() <= 60 &&
+        data.entityId is string && data.entityId.size() >= 1 && data.entityId.size() <= 128 &&
+        data.summary is string && data.summary.size() >= 1 && data.summary.size() <= 400 &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidSupportRequest(data) {
+      return data.keys().hasAll(['customerId', 'customerName', 'customerEmail', 'subject', 'category', 'message', 'status', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['customerId', 'customerName', 'customerEmail', 'subject', 'category', 'relatedRef', 'message', 'status', 'createdAt', 'updatedAt']) &&
+        isValidId(data.customerId) && data.customerId == request.auth.uid &&
+        data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 120 &&
+        data.customerEmail is string && data.customerEmail.size() >= 3 && data.customerEmail.size() <= 160 &&
+        data.subject is string && data.subject.size() >= 3 && data.subject.size() <= 160 &&
+        data.category in ['BOOKING', 'PURCHASE', 'PAYMENT', 'ACCOUNT', 'GENERAL'] &&
+        isValidOptStr(data, 'relatedRef', 60) &&
+        data.message is string && data.message.size() >= 5 && data.message.size() <= 2000 &&
+        data.status in ['OPEN', 'IN_PROGRESS', 'RESOLVED'] &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    // ---------------------------------------------------------
+    // Collection Rules
+    // ---------------------------------------------------------
+
+    match /test/connection {
+      allow get: if true;
+    }
+
+    match /settings/{settingId} {
+      allow get: if isValidId(settingId);
+      allow list: if true;
+      allow create, update: if isValidId(settingId) && isAdmin() &&
+        isValidBusinessSetting(incoming()) &&
+        incoming().updatedAt == request.time;
+      allow delete: if false;
+    }
+
+    match /brands/{brandId} {
+      allow get: if isValidId(brandId);
+      allow list: if true;
+      allow create: if isValidId(brandId) && isAdmin() && isValidBrand(incoming()) && incoming().createdAt == request.time;
+      allow update: if isValidId(brandId) && isAdmin() && isValidBrand(incoming()) && incoming().createdAt == existing().createdAt;
+      allow delete: if isValidId(brandId) && isAdmin();
+    }
+
+    match /categories/{categoryId} {
+      allow get: if isValidId(categoryId);
+      allow list: if true;
+      allow create: if isValidId(categoryId) && isAdmin() && isValidCategory(incoming()) && incoming().createdAt == request.time;
+      allow update: if isValidId(categoryId) && isAdmin() && isValidCategory(incoming()) && incoming().createdAt == existing().createdAt;
+      allow delete: if isValidId(categoryId) && isAdmin();
+    }
+
+    match /vehicles/{vehicleId} {
+      allow get: if isValidId(vehicleId) && (
+        (existing().published == true && existing().archived == false) ||
+        isStaffOrAdmin()
+      );
+      allow list: if (resource.data.published == true && resource.data.archived == false) || isStaffOrAdmin();
+      allow create: if isValidId(vehicleId) && isStaffOrAdmin() &&
+        isValidVehicle(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(vehicleId) && isStaffOrAdmin() &&
+        isValidVehicle(incoming()) &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time;
+      allow delete: if isValidId(vehicleId) && isAdmin();
+    }
+
+    match /vehicle_private/{vehicleId} {
+      allow get: if isValidId(vehicleId) && isStaffOrAdmin();
+      allow list: if isStaffOrAdmin();
+      allow create, update: if isValidId(vehicleId) && isStaffOrAdmin() &&
+        exists(/databases/$(database)/documents/vehicles/$(vehicleId)) &&
+        isValidVehiclePrivate(incoming(), vehicleId) &&
+        incoming().updatedAt == request.time;
+      allow delete: if isValidId(vehicleId) && isAdmin();
+    }
+
+    match /vehicle_schedules/{vehicleId} {
+      allow get: if isValidId(vehicleId);
+      allow list: if isStaffOrAdmin();
+      allow create, update: if isValidId(vehicleId) && isStaffOrAdmin() &&
+        exists(/databases/$(database)/documents/vehicles/$(vehicleId)) &&
+        isValidVehicleSchedule(incoming(), vehicleId) &&
+        incoming().updatedAt == request.time;
+      allow delete: if isValidId(vehicleId) && isAdmin();
+    }
+
+    match /users/{uid} {
+      allow get: if isValidId(uid) && ((isSignedIn() && request.auth.uid == uid) || isStaffOrAdmin());
+      allow list: if isStaffOrAdmin() || (isVerified() && resource.data.uid == request.auth.uid);
+      allow create: if isValidId(uid) && isSignedIn() && request.auth.uid == uid &&
+        isValidUserProfile(incoming(), uid) &&
+        incoming().email == request.auth.token.email &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        (
+          (incoming().role == 'CUSTOMER' && incoming().permissions.size() == 0 && incoming().active == true) ||
+          isBootstrappedAdmin()
+        );
+      allow update: if isValidId(uid) && isValidUserProfile(incoming(), uid) &&
+        incoming().uid == existing().uid &&
+        incoming().email == existing().email &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          (
+            isOwner(uid) &&
+            incoming().role == existing().role &&
+            incoming().permissions == existing().permissions &&
+            incoming().active == existing().active &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'phone', 'address', 'driverLicenseNo', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(uid) && isAdmin();
+    }
+
+    match /favorites/{favoriteId} {
+      allow get: if isValidId(favoriteId) && isVerified() && existing().userId == request.auth.uid;
+      allow list: if isVerified() && resource.data.userId == request.auth.uid;
+      allow create: if isValidId(favoriteId) && isVerified() &&
+        isValidFavorite(incoming()) &&
+        exists(/databases/$(database)/documents/vehicles/$(incoming().vehicleId)) &&
+        incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isValidId(favoriteId) && isVerified() && existing().userId == request.auth.uid;
+    }
+
+    // Dedicated Car Sales Inquiries
+    match /inquiries/{inquiryId} {
+      allow get: if isValidId(inquiryId) && isVerified() && (
+        existing().customerId == request.auth.uid || isStaffOrAdmin()
+      );
+      allow list: if isStaffOrAdmin() || (isVerified() && resource.data.customerId == request.auth.uid);
+      allow create: if isValidId(inquiryId) && isVerified() &&
+        isValidSaleInquiry(incoming()) &&
+        incoming().customerId == request.auth.uid &&
+        incoming().status == 'NEW' &&
+        incoming().notes.size() == 0 &&
+        !('assignedStaffId' in incoming()) &&
+        exists(/databases/$(database)/documents/vehicles/$(incoming().vehicleId)) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(inquiryId) && isStaffOrAdmin() &&
+        isValidSaleInquiry(incoming()) &&
+        incoming().inquiryReference == existing().inquiryReference &&
+        incoming().customerId == existing().customerId &&
+        incoming().vehicleId == existing().vehicleId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time;
+      allow delete: if isValidId(inquiryId) && isAdmin();
+    }
+
+    // Dedicated Car Rental Bookings
+    match /bookings/{bookingId} {
+      allow get: if isValidId(bookingId) && isVerified() && (
+        existing().customerId == request.auth.uid || isStaffOrAdmin()
+      );
+      allow list: if isStaffOrAdmin() || (isVerified() && resource.data.customerId == request.auth.uid);
+      allow create: if isValidId(bookingId) && isVerified() &&
+        isValidRentalBooking(incoming()) &&
+        incoming().customerId == request.auth.uid &&
+        incoming().status == 'PENDING' &&
+        incoming().paidAmountCents == 0 &&
+        !('contractReference' in incoming()) &&
+        !('assignedStaffId' in incoming()) &&
+        exists(/databases/$(database)/documents/vehicles/$(incoming().vehicleId)) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(bookingId) && isVerified() &&
+        isValidRentalBooking(incoming()) &&
+        incoming().bookingReference == existing().bookingReference &&
+        incoming().customerId == existing().customerId &&
+        incoming().vehicleId == existing().vehicleId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isStaffOrAdmin() ||
+          (
+            existing().customerId == request.auth.uid &&
+            existing().status == 'PENDING' &&
+            incoming().status == 'CANCELLED' &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(bookingId) && isAdmin();
+    }
+
+    match /payments/{paymentId} {
+      allow get: if isValidId(paymentId) && isVerified() && (
+        existing().customerId == request.auth.uid || isStaffOrAdmin()
+      );
+      allow list: if isStaffOrAdmin() || (isVerified() && resource.data.customerId == request.auth.uid);
+      allow create: if isValidId(paymentId) && isStaffOrAdmin() &&
+        isValidRentalPayment(incoming()) &&
+        incoming().recordedBy == request.auth.uid &&
+        exists(/databases/$(database)/documents/bookings/$(incoming().bookingId)) &&
+        incoming().createdAt == request.time;
+      allow update: if isValidId(paymentId) && isAdmin() &&
+        isValidRentalPayment(incoming()) &&
+        incoming().bookingId == existing().bookingId &&
+        incoming().customerId == existing().customerId &&
+        incoming().createdAt == existing().createdAt;
+      allow delete: if false;
+    }
+
+    match /notifications/{notificationId} {
+      allow get: if isValidId(notificationId) && isVerified() && (
+        existing().userId == request.auth.uid || (existing().audience == 'ADMIN' && isStaffOrAdmin())
+      );
+      allow list: if (isVerified() && resource.data.userId == request.auth.uid) || (isStaffOrAdmin() && resource.data.audience == 'ADMIN');
+      allow create: if isValidId(notificationId) && isVerified() &&
+        isValidNotification(incoming()) &&
+        incoming().read == false &&
+        incoming().createdAt == request.time && (
+          isStaffOrAdmin() ||
+          (incoming().audience == 'ADMIN' && incoming().type in ['BOOKING', 'INQUIRY'])
+        );
+      allow update: if isValidId(notificationId) && isVerified() &&
+        isValidNotification(incoming()) &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['read']) && (
+          existing().userId == request.auth.uid || (existing().audience == 'ADMIN' && isStaffOrAdmin())
+        );
+      allow delete: if isValidId(notificationId) && isVerified() && (
+        existing().userId == request.auth.uid || isAdmin()
+      );
+    }
+
+    match /audit_logs/{logId} {
+      allow get, list: if isAdmin();
+      allow create: if isValidId(logId) && isVerified() &&
+        isValidAuditLog(incoming()) &&
+        incoming().createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    match /support_requests/{requestId} {
+      allow get: if isValidId(requestId) && isVerified() && (
+        existing().customerId == request.auth.uid || isStaffOrAdmin()
+      );
+      allow list: if isStaffOrAdmin() || (isVerified() && resource.data.customerId == request.auth.uid);
+      allow create: if isValidId(requestId) && isVerified() &&
+        isValidSupportRequest(incoming()) &&
+        incoming().status == 'OPEN' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(requestId) && isStaffOrAdmin() &&
+        isValidSupportRequest(incoming()) &&
+        incoming().customerId == existing().customerId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time;
+      allow delete: if isValidId(requestId) && isAdmin();
+    }
+  }
+}
